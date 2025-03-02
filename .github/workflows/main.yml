@@ -1,0 +1,51 @@
+name: Create Release From Builds
+
+on:
+  workflow_run:
+    workflows: ["Build Firmware"] # Replace with the name of your existing workflow
+    types:
+      - completed
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Download artifacts
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: ${{ github.event.workflow_run.workflow_id }}
+          run_id: ${{ github.event.workflow_run.id }}
+          path: artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          ls -la artifacts/
+          find artifacts -type f | sort
+      
+      # Get the current date for the release tag
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
+
+      # Create Release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: release-${{ steps.date.outputs.date }}
+          release_name: Keymap Release ${{ steps.date.outputs.date }}
+          draft: false
+          prerelease: false
+          body: |
+            Automatically generated keymap release
+            
+      # Upload all artifacts to the release
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: release-${{ steps.date.outputs.date }}
+          files: artifacts/**/*
+          token: ${{ secrets.GITHUB_TOKEN }}
