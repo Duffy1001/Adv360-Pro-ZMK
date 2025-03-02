@@ -17,19 +17,40 @@ jobs:
         with:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           run_id: ${{ github.event.workflow_run.id }}
-          path: artifacts
+          path: downloaded-artifacts
+      
+      # Debug - List what was downloaded
+      - name: List downloaded files
+        run: |
+          find downloaded-artifacts -type f | sort
+      
+      # Extract zip files if needed
+      - name: Extract zip files
+        run: |
+          mkdir -p extracted-files
+          find downloaded-artifacts -name "*.zip" -exec unzip -o {} -d extracted-files \;
+          # Also copy any non-zip files directly
+          find downloaded-artifacts -type f -not -name "*.zip" -exec cp {} extracted-files/ \;
+          # List what we have after extraction
+          echo "Contents of extracted-files directory:"
+          find extracted-files -type f | sort
       
       # Get the current date for the release tag
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+      
+      # Get the short SHA
+      - name: Get short SHA
+        id: sha
+        run: echo "sha=$(echo ${{ github.event.workflow_run.head_sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
       
       # Create the GitHub Release and upload all artifacts in one step
       - name: Create Release with Artifacts
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: keymap-${{ steps.date.outputs.date }}
-          name: Keymap Release ${{ steps.date.outputs.date }}
-          files: artifacts/**/*
+          tag_name: keymap-${{ steps.date.outputs.date }}-${{ steps.sha.outputs.sha }}
+          name: Keymap Release ${{ steps.date.outputs.date }}-${{ steps.sha.outputs.sha }}
+          files: extracted-files/**/*
           generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
